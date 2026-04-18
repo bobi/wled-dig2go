@@ -47,7 +47,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version-file: wled/.nvmrc
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: wled/package-lock.json
 
