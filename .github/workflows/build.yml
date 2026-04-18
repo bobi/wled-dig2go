@@ -1,0 +1,94 @@
+name: Build dig2go Firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      wled_tag:
+        description: 'WLED release tag (e.g. v0.15.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build dig2go
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+        with:
+          path: custom
+
+      - name: Checkout WLED
+        uses: actions/checkout@v4
+        with:
+          repository: wled/WLED
+          ref: ${{ inputs.wled_tag }}
+          path: wled
+
+      - name: Checkout QuinLED-Firmware (sparse)
+        uses: actions/checkout@v4
+        with:
+          repository: intermittech/QuinLED-Firmware
+          path: quinled-firmware
+          sparse-checkout: |
+            platformio_override.ini
+          sparse-checkout-cone-mode: false
+
+      - name: Apply platformio_override.ini
+        run: |
+          cp quinled-firmware/platformio_override.ini wled/
+          if [ -s custom/patches/platformio_override.ini.patch ]; then
+            patch wled/platformio_override.ini < custom/patches/platformio_override.ini.patch
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: wled/.nvmrc
+          cache: 'npm'
+          cache-dependency-path: wled/package-lock.json
+
+      - name: Build web assets
+        working-directory: wled
+        run: npm ci
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: wled/requirements.txt
+
+      - name: Install PlatformIO
+        working-directory: wled
+        run: pip install -r requirements.txt
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/.cache
+            ~/.buildcache
+            wled/build_output
+          key: pio-${{ runner.os }}-dig2go-${{ hashFiles('wled/platformio.ini',
+            'wled/pio-scripts/output_bins.py') }}-${{
+            hashFiles('wled/wled00/**', 'wled/usermods/**') }}
+          restore-keys: pio-${{ runner.os }}-dig2go-${{ hashFiles('wled/platformio.ini',
+            'wled/pio-scripts/output_bins.py') }}-
+
+      - name: Build firmware
+        working-directory: wled
+        run: pio run -e dig2go
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.wled_tag }}
+          name: 'dig2go ${{ inputs.wled_tag }}'
+          body: |
+            dig2go firmware built from [WLED ${{ inputs.wled_tag }}](https://github.com/wled/WLED/releases/tag/${{ inputs.wled_tag }})
+          files: |
+            wled/build_output/release/*.bin

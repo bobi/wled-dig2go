@@ -1,0 +1,46 @@
+name: Check for New WLED Release
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get latest WLED release tag
+        id: wled
+        run: |
+          TAG=$(gh api repos/wled/WLED/releases/latest --jq '.tag_name')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Latest WLED release: $TAG"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if release already built
+        id: built
+        run: |
+          if gh api "repos/${{ github.repository }}/releases/tags/${{ steps.wled.outputs.tag }}" > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Already built: ${{ steps.wled.outputs.tag }}"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "New release found: ${{ steps.wled.outputs.tag }}"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger build
+        if: steps.built.outputs.exists == 'false'
+        run: |
+          gh workflow run build.yml \
+            --repo "${{ github.repository }}" \
+            --ref main \
+            --field "wled_tag=${{ steps.wled.outputs.tag }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,10 @@
+--- quinled-firmware/platformio_override.ini	2026-04-18 18:16:19.923894305 -0400
++++ quinled-firmware/platformio_override.modified.ini	2026-04-18 18:43:41.011015931 -0400
+@@ -471,6 +471,7 @@
+   -D BTNPIN=0
+   -D IRPIN=5
+   -D DMENABLED=1
++  -D NPB_CONF_4STEP_CADENCE
+   ${esp32.AR_build_flags}
+   -D SR_DMTYPE=1
+   -D I2S_SDPIN=19
